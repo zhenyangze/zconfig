@@ -5,7 +5,7 @@ wordpress通用配置插件，可制作网站设置，自定义配置，多列�
 
 ### 后台截图
 
-![demo]()
+![demo](https://raw.githubusercontent.com/zhenyangze/zconfig/main/static/demo.png)
 
 
 
