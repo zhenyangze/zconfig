@@ -1,0 +1,207 @@
+<?php wp_enqueue_script('zconfig-vue'); ?>
+<div class="wrap" id="app">
+    <h1 class="wp-heading-inline">编辑模板</h1>
+
+    <a href="javascript:;" class="page-title-action">添加数据</a>
+
+    <hr class="wp-header-end">
+    <!--start-->
+    <table class="form-table widefat template-header">
+        <tbody>
+            <tr class="form-field">
+                <th scope="row">
+                    <label for="first_name">模板名称<span style="color:red;">*</span></label>
+                </th>
+                <td>
+                    <input type="text" v-model="base.name">
+                </td>
+            </tr>
+            <tr class="form-field">
+                <th scope="row">
+                    <label for="last_name">模板标识<span style="color:red;">*</span></label>
+                </th>
+                <td>
+                    <input type="text" v-model="base.code">
+                </td>
+            </tr>
+            <tr class="form-field">
+                <th scope="row">
+                    <label for="url">模板备注</label>
+                </th>
+                <td>
+                    <input type="text" v-model="base.comment">
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    数据类型
+                </th>
+                <td>
+                    <input type="checkbox" v-model="base.multi" name="multi">
+                    <label for="send_user_notification">是否是多条数据</label>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <!--end-->
+    <hr class="wp-header-end">
+
+    <form method="post">
+        <h2 class="screen-reader-text">用户列表</h2><table class="wp-list-table widefat fixed striped users">
+            <thead>
+                <tr>
+                    <th scope="col" id="name" width="10%" class="manage-column column-name">字段名称<span style="color:red;">*</span></th>
+                    <th scope="col" id="code" width="10%" class="manage-column column-code">字段标识<span style="color:red;">*</span></th>
+                    <th scope="col" id="type" width="10%" class="manage-column column-operator">字段类型<span style="color:red;">*</span></th>
+                    <th scope="col" id="default" width="15%" class="manage-column column-comment">初始值</th>
+                    <th scope="col" id="required" width="10%" class="manage-column column-multi">必填</th>
+                    <th scope="col" id="status" width="10%" class="manage-column column-operator">状态</th>
+                    <th scope="col" id="order" width="5%" class="manage-column column-operator">排序</th>
+                    <th scope="col" id="comment" width="15%" class="manage-column column-operator">备注</th>
+                    <th scope="col" id="comment" width="10%" class="manage-column column-operator">操作</th>
+                </tr>
+            </thead>
+            <tbody id="the-list" data-wp-lists="list:user">
+                <tr v-for="(item, index) in templateList" :key="item.guid">
+                    <td><input type="text" required data-name="name" class="list-text" v-model="templateList[index].name"></td>
+                    <td><input type="text" required data-name="name" class="list-text" v-model="item.code"></td>
+                    <td>
+                        <select data-nane="type" v-model="item.type">
+                            <?php foreach(Zconfig::getFieldTypeList() as $key => $value) { ?>
+                            <option value="<?=$key?>"><?=$value?></option>
+                            <?php } ?>
+                        </select>
+                    </td>
+                    <td><input type="text" data-name="name" class="list-text" v-model="item.default"></td>
+                    <td><input type="checkbox" data-name="name" v-model="item.required">必填</td>
+                    <td><input type="checkbox" data-name="name" v-model="item.status">启用</td>
+                    <td><input type="text" class="list-text" v-model="item.order"></td>
+                    <td><input type="text" class="list-text" v-model="item.comment"></td>
+                    <td>
+                        <a href="javascript:;" @click="newItem()">新增</a> |
+                        <a href="javascript:;" @click="deleteItem(item.guid)">删除</a>
+                    </td>
+                </tr>
+            </tbody>
+
+        </table>
+    </form>
+
+    <br class="clear">
+    <p class="submit"><input type="button" id="createbutton" @click="saveTemplate" class="button button-primary" value="保存"></p>
+</div>
+
+<style type="text/css" media="screen">
+#the-list input.list-text{
+    width: 80%;
+}
+.wp-header-end {
+    margin: 10px 0;
+}
+.template-header th {
+    padding-left: 20px;
+}
+.template-header td {
+    padding-right: 50%;
+}
+</style>
+
+<script charset="utf-8">
+    jQuery(function () {
+    var data = {
+        id: '<?=empty($template) ? "" : $template->id?>',
+        name: '<?=empty($template) ? "" : $template->name?>',
+        code: '<?=empty($template) ? "" : $template->code?>',
+        comment: '<?=empty($template) ? "" : $template->comment?>',
+        multi: <?=empty($template) ? 'false' : 'Boolean(' . $template->multi . ')'?>,
+        template: '<?=empty($template) ? "" : $template->template?>',
+        data: '<?=empty($template) ? "" : $template->data?>',
+    };
+    var app = new Vue({
+      el: '#app',
+      data: {
+        templateList: [
+        ],
+        base: {
+        },
+        demo: {
+            id: "",
+            name: "",
+            code: "",
+            type: 1,
+            default: "",
+            required: true,
+            status: true,
+            order: 0,
+            comment: ""
+        },
+      },
+      created() {
+        this.base = data;
+        try {
+            this.templateList = JSON.parse(data.template);
+        } catch(e) {
+            this.templateList = [];
+        }
+        if (this.templateList.length == 0) {
+            this.newItem();
+        }
+      },
+      methods: {
+        newItem() {
+            let items = JSON.parse(JSON.stringify(this.demo));
+            items.guid = (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
+            this.templateList.push(items);
+        },
+        deleteItem(index) {
+            for(let i = 0; i< this.templateList.length; i++) {
+                if (this.templateList[i].guid == index) {
+                    this.templateList.splice(i, 1)
+                    break;
+                }
+            }
+        },
+        saveTemplate() {
+            // 检测template内容
+            if (this.base.name.length < 1 || this.base.code.length < 1) {
+                alert('模板基本信息不完整');
+                return;
+            }
+
+            var keyList = [];
+            for(let i = 0; i< this.templateList.length; i++) {
+                if (this.templateList[i].name.length < 1) {
+                    alert("字段名称不能为空");
+                    return;
+                }
+                if (keyList.indexOf(this.templateList[i].code) < 0) {
+                    keyList.push(this.templateList[i].code);
+                } else {
+                    alert("字段标识不能重复");
+                    return;
+                }
+            }
+            var url = '/wp-admin/admin.php?page=zconfig_template&action=save';
+            var params = JSON.parse(JSON.stringify(this.base));
+            params.template = JSON.stringify(this.templateList);
+            delete(params.data)
+            
+            var self = this;
+            jQuery.post(url, params, function(res) {
+                console.log(res)
+                if (res.code != 200) {
+                    alert(res.msg);
+                } else {
+                    if (parseInt(self.base.id) <= 0 && res.data.id > 0) {
+                        self.base.id = res.data.id;
+                        data.id = res.data.id;
+                    }
+                    alert(res.msg);
+                }
+            }, 'JSON');
+        }
+      }
+    })
+
+    });
+</script>

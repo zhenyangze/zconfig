@@ -1,0 +1,279 @@
+<?php wp_enqueue_script('zconfig-vue'); ?>
+<?php wp_enqueue_media(); ?>
+<div class="wrap" id="app">
+    <h1 class="wp-heading-inline">配置数据</h1>
+    <hr class="wp-header-end">
+    <!--start-->
+    <table class="form-table widefat template-header">
+        <tbody>
+            <tr class="form-field">
+                <th scope="row">
+                    <label for="first_name">请选择模板</label>
+                </th>
+                <td>
+                    <select id="el_template_list" v-model="index" :label-in-value="true">
+                        <option selected value=0>请选择模板</option>
+                        <option v-for="item in templateList" :key="item.id" :value="item.id">{{ item.name }}</option>
+                    </select>
+                </td>
+            </tr>
+            <!--tr class="form-field">
+                <th scope="row">
+                    <label for="first_name">模板名称<span style="color:red;">*</span></label>
+                </th>
+                <td>
+                    {{ base.name || '未选择模板' }}
+                </td>
+            </tr-->
+            <tr class="form-field">
+                <th scope="row">
+                    <label for="last_name">模板标识</label>
+                </th>
+                <td>
+                    {{ base.code || '未选择模板' }}
+                </td>
+            </tr>
+            <tr class="form-field">
+                <th scope="row">
+                    <label for="url">模板备注</label>
+                </th>
+                <td>
+                    {{ base.comment || '未选择模板' }}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">
+                    数据类型
+                </th>
+                <td>
+                    <label v-if="base.multi" for="send_user_notification">多条数据</label>
+                    <label v-else for="send_user_notification">单条数据</label>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <!--end-->
+    <hr class="wp-header-end">
+
+    <form>
+        <table class="wp-list-table widefat fixed striped users" v-for="(item, index) in dataList" :key="item.guid">
+            <thead>
+                <tr>
+                    <th width="20%">字段</th>
+                    <td>值</td>
+                    <td>备注</td>
+                </tr>
+            </thead>
+            <tbody v-if="template.length > 0">
+                <tr v-for="(field, i) in template" :key="i" v-if="field.status">
+                    <th>{{ field.name }} 
+                        <span v-if="field.required" style="color:red;">*</span>
+                    </th>
+
+                    <td v-if="field.type == 2">
+                        <textarea rows="4" cols="40" required="field.required" v-model="item[field.code]"></textarea>
+                    </td>
+                    <td v-if="field.type == 3">
+                        <label v-for="(sub_field, sub_index) in field.default.split(',')" :key="sub_index"><input type="radio" v-model="item[field.code]" :name="field.code + '[' + index + ']'" required="field.required" :value="sub_field">{{ sub_field }}&nbsp;&nbsp;</label>
+                    </td>
+                    <td v-if="field.type == 4">
+                        <label v-for="(sub_field, sub_index) in field.default.split(',')" :key="sub_index">
+                            <input type="checkbox" :name="field.code + '[' + index + ']'" :required="field.required" :value="sub_field" v-model="checkboxList[index + '_' + field.code + '_' + sub_field]"  @change="changeCheckBox(index, field.code, sub_index, sub_field)">{{ sub_field }}</label>
+                    </td>
+                    <td v-if="field.type == 5">
+                        <button type="button" class="button" @click="selectMedia(index, field.code)"><span class="wp-media-buttons-icon"></span> 添加媒体</button>
+                        <br>
+                        <span>{{ item[field.code] || '' }}</span>
+                    </td>
+                    <td v-if="field.type == 1">
+                        <input type="text" v-model="item[field.code]" :required="field.required">
+                    </td>
+                    
+                    <td>{{ field.comment || '-' }}</td>
+                </tr>
+            </tbody>
+
+        </table>
+    </form>
+
+    <br class="clear">
+    <p class="submit">
+        <input type="button" id="createbutton" @click="saveData()"  class="button button-primary" value="保存">
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <input type="button" class="button button-secondary" v-if="base.multi" @click="newData()" value="新增">
+    </p>
+</div>
+
+<style type="text/css" media="screen">
+#the-list input.list-text{
+    width: 80%;
+}
+.wp-header-end {
+    margin: 10px 0;
+}
+.template-header th {
+    padding-left: 20px;
+}
+.template-header td {
+    padding-right: 50%;
+}
+</style>
+
+<script charset="utf-8">
+    jQuery(document).ready(function () {
+    // 处理页面数据
+    var app = new Vue({
+      el: '#app',
+      data: {
+        base: {
+        },
+        templateList: [],
+        index: '',
+        dataList:[],
+        template: [],
+        checkboxList: [],
+      },
+      created() {
+        // 获取模板信息
+        this.getTemplateList();
+        if (this.dataList.length == 0) {
+            this.dataList.push({})
+        }
+      },
+      watch :{
+        index: function(val, oldVal) {
+            this.checkboxList = []; 
+            for (let i = 0; i < this.templateList.length; i++) {
+                if (this.templateList[i].id == val) {
+                    this.base = this.templateList[i];
+                    if ( typeof  this.base.template == 'undefined' || this.base.template == null ||  this.base.template.length == 0) {
+                         this.base.template = '';
+                    }
+                    if ( typeof  this.base.data == 'undefined' || this.base.data == null ||  this.base.data.length == 0) {
+                         this.base.data = '{}';
+                    }
+                    this.base.template = this.base.template.replace(/\\\"/g, '"');
+                    this.base.data = this.base.data.replace(/\\\"/g, '"');
+                    try {
+                        this.template = JSON.parse(this.base.template);
+                        this.dataList = JSON.parse(this.base.data);
+                    } catch(e) {
+                        this.template = [];
+                        this.dataList = [{}];
+                    }
+                    if (this.dataList == null || typeof this.dataList.length == 'undefined' || this.dataList.length == 0) {
+                         this.dataList = [{}];
+                    }
+
+                    // 排序
+                    this.template = this.template.sort(this.compareDesc('order'));
+                    // 处理checkbox
+                    for(let i in this.dataList) {
+                        for (let j in this.dataList[i]) {
+                            if (Array.isArray(this.dataList[i][j])) {
+                                for (m in this.dataList[i][j]) {
+                                    let key = [i, j, this.dataList[i][j][m]].join('_');
+                                    this.checkboxList[key] = true;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+      },
+      methods: {
+        getTemplateList() {
+            var self = this;
+            jQuery.getJSON('/wp-admin/admin.php?page=zconfig_index&action=list', function (res) {
+                if (res.code == '200') {
+                    self.templateList = res.data;
+                }
+            });
+        },
+        selectMedia(index, key) {
+            var uploadFrame = wp.media({   
+                title: 'Insert image',   
+                button: {   
+                    text: 'Insert',
+                },   
+                multiple: false
+            });  
+            var self = this;
+            uploadFrame.on('select',function(){
+                attachment =  uploadFrame.state().get('selection').first().toJSON();
+
+                if (typeof self.dataList[index] == 'undefined') {
+                    self.dataList[index][key] = {};
+                }
+                self.dataList[index][key] = attachment.url;
+               self.dataList =  self.dataList.splice(0);
+                //jQuery('input[name='+value_id+']').val(attachment.url);
+            }).open();
+        },
+        saveData() {
+            let url = '/wp-admin/admin.php?page=zconfig_template&action=save';
+            this.base.data = JSON.stringify(this.dataList);
+            jQuery.post(url, {
+                id: this.base.id,
+                data: JSON.stringify(this.dataList)
+            }, function (res) {
+                if (res.code == '200') {
+                    alert('更新成功');
+                } else {
+                    alert(res.msg);
+                }
+            }, 'JSON');
+        },
+        newData() {
+            this.dataList.push({});
+            this.base.data = JSON.stringify(this.dataList);
+        },
+        changeCheckBox(index, code, sub_index, sub_field) {
+            let key = [index, code, sub_field].join('_');
+            let checkStatus = this.checkboxList[key];
+            if (typeof this.dataList[index] == 'undefined') {
+                this.dataList[index] = [];
+            }
+            if (typeof this.dataList[index][code] == 'undefined') {
+                this.dataList[index][code] = [];
+            }
+            this.dataList[index][code] = this.unique(this.dataList[index][code]);
+            if (checkStatus) {
+                this.dataList[index][code].push(sub_field);
+            } else {
+                let position = this.dataList[index][code].indexOf(sub_field);
+                if (position > -1) {
+                    this.dataList[index][code].splice(position, 1);
+                }
+            }
+            this.dataList[index][code] = this.unique(this.dataList[index][code]);
+        },
+        unique( arr ){
+            return arr.filter(function(item,index){
+                return arr.indexOf(item,0) === index;
+            });
+        },
+        compareDesc (prop) {
+            return function (obj1, obj2) {
+                var val1 = obj1[prop];
+                var val2 = obj2[prop];
+                if (!isNaN(Number(val1)) && !isNaN(Number(val2))) {
+                    val1 = Number(val1);
+                    val2 = Number(val2);
+                }
+                if (val1 > val2) {
+                    return 1;
+                } else if (val1 < val2) {
+                    return -1;
+                } else {
+                    return 0;
+                }
+            }
+        },
+      }
+    })
+
+    });
+</script>
